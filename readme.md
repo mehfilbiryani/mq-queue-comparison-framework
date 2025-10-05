@@ -103,11 +103,6 @@ A comprehensive, production-ready JUnit 5 test framework for comparing messages 
 | **IBM MQ Server** | 9.x or higher | Message queue server |
 | **IBM MQ Client** | 9.3.3.0 | MQ client libraries (included via Maven) |
 
-### System Requirements
-- **OS**: Windows, Linux, or macOS
-- **Memory**: Minimum 2GB RAM
-- **Disk Space**: 500MB for Maven dependencies
-
 ### Verify Prerequisites
 
 ```bash
