@@ -1,8 +1,11 @@
+D:\MQ\mq-queue-comparison-framework\src\main\java\com\mq\test\config\TestConfiguration.java
 D:\MQ\mq-queue-comparison-framework\src\main\java\com\mq\test\util\TestLogger.java
 D:\MQ\mq-queue-comparison-framework\src\main\java\com\mq\test\util\TestHandler.java
 D:\MQ\mq-queue-comparison-framework\src\main\java\com\mq\test\comparator\MessageComparator.java
 D:\MQ\mq-queue-comparison-framework\src\main\java\com\mq\test\report\ExtentReportManager.java
+D:\MQ\mq-queue-comparison-framework\src\main\java\com\mq\test\config\ConfigurationManager.java
 D:\MQ\mq-queue-comparison-framework\src\main\java\com\mq\test\model\MQMessage.java
 D:\MQ\mq-queue-comparison-framework\src\main\java\com\mq\test\config\MQConnectionConfig.java
 D:\MQ\mq-queue-comparison-framework\src\main\java\com\mq\test\model\ComparisonResult.java
 D:\MQ\mq-queue-comparison-framework\src\main\java\com\mq\test\util\MQMessageReader.java
+D:\MQ\mq-queue-comparison-framework\src\main\java\com\mq\test\config\QueueConfiguration.java

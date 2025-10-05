@@ -1,7 +1,10 @@
+com\mq\test\config\ConfigurationManager.class
 com\mq\test\comparator\MessageComparator.class
+com\mq\test\config\TestConfiguration.class
 com\mq\test\config\MQConnectionConfig.class
 com\mq\test\model\MQMessage.class
 TestHandler.class
+com\mq\test\config\QueueConfiguration.class
 com\mq\test\util\MQMessageReader.class
 com\mq\test\model\ComparisonResult.class
 com\mq\test\util\TestLogger.class

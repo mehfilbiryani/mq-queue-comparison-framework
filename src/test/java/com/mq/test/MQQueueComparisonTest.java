@@ -1,9 +1,12 @@
+// ============= File 1: Fixed MQQueueComparisonTest.java =============
+// Location: src/test/java/com/mq/test/MQQueueComparisonTest.java
+
 package com.mq.test;
 
 import com.aventstack.extentreports.ExtentTest;
 import com.ibm.mq.MQException;
 import com.mq.test.comparator.MessageComparator;
-import com.mq.test.config.MQConnectionConfig;
+import com.mq.test.config.*;
 import com.mq.test.error.MQErrorHandler;
 import com.mq.test.model.ComparisonResult;
 import com.mq.test.model.MQMessage;
@@ -22,14 +25,15 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Main test class for IBM MQ Queue Comparison - Refactored with centralized error handling and logging
+ * Main test class for IBM MQ Queue Comparison with environment-based configuration
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class MQQueueComparisonTest {
     
-    private static MQConnectionConfig config;
-    private static String queue1Name = "QUEUE1";
-    private static String queue2Name = "QUEUE2";
+    private static MQConnectionConfig mqConfig;
+    private static QueueConfiguration queueConfig;
+    private static TestConfiguration testConfig;
+    
     private static List<MQMessage> queue1Messages;
     private static List<MQMessage> queue2Messages;
     private static boolean setupSuccessful = false;
@@ -41,56 +45,94 @@ public class MQQueueComparisonTest {
         TestLogger.printConsoleBanner("IBM MQ QUEUE COMPARISON FRAMEWORK");
         
         try {
+            // CRITICAL: Initialize report and setupTest FIRST before any operations that might fail
             ExtentReportManager.initReport("target/ExtentReport.html");
             setupTest = ExtentReportManager.createTest("Setup & Connection Test", 
-                "Initialize MQ connections and read messages");
+                "Initializing MQ Queue Comparison Framework");
             
+            // NOW load environment-specific configuration
+            TestLogger.printConsoleSection("Loading Configuration");
+            TestLogger.logInfo(setupTest, "Loading environment configuration");
+            
+            try {
+                ConfigurationManager.loadConfiguration();
+            } catch (IOException e) {
+                TestLogger.logFail(setupTest, "Failed to load configuration: " + e.getMessage());
+                TestLogger.logFail(setupTest, "Please ensure property files exist in src/test/resources/config/");
+                throw e;
+            }
+            
+            ConfigurationManager.printConfiguration();
+            
+            // Get configuration objects
+            mqConfig = ConfigurationManager.getMQConfig();
+            queueConfig = ConfigurationManager.getQueueConfig();
+            testConfig = ConfigurationManager.getTestConfig();
+            
+            // Re-initialize report with environment-specific path
+            ExtentReportManager.initReport(testConfig.getReportOutputPath());
+            
+            // Recreate setup test with proper environment info
+            setupTest = ExtentReportManager.createTest("Setup & Connection Test", 
+                String.format("Initialize MQ connections for %s environment", 
+                    ConfigurationManager.getCurrentEnvironment().toUpperCase()));
+            
+            TestLogger.logInfo(setupTest, String.format("Environment: %s", 
+                ConfigurationManager.getCurrentEnvironment().toUpperCase()));
             TestLogger.logInfo(setupTest, "Starting MQ Queue Comparison Framework");
-            TestLogger.printConsoleSection("Configuration");
             
-            // Configure MQ connection
-            config = new MQConnectionConfig(
-                "localhost",
-                1414,
-                "QM1",
-                "DEV.ADMIN.SVRCONN",
-                "admin",
-                "password"
-            );
-            com.mq.test.setup.MQQueueSetup.bootstrap(
-    config,
-    queue1Name,   // "QUEUE1"
-    queue2Name,   // "QUEUE2"
-    true,         // clear queues first
-    10            // seed N messages; set 0 if you don't want seeding
-);
-
-            TestLogger.logConnectionAttempt(setupTest, config.getHost(), config.getPort(), config.getQueueManager());
+            TestLogger.logConnectionAttempt(setupTest, mqConfig.getHost(), 
+                mqConfig.getPort(), mqConfig.getQueueManager());
             
             // Initialize message lists
             queue1Messages = new ArrayList<>();
             queue2Messages = new ArrayList<>();
             
-            // Read messages from Queue 1
-            TestLogger.printConsoleSection("Reading Queue: " + queue1Name);
+            // Optional: Bootstrap queues with test data if MQQueueSetup is available
             try {
-                queue1Messages = MQMessageReader.readMessages(config, queue1Name, 1000, true);
-                TestLogger.logConnectionSuccess(setupTest, queue1Name, queue1Messages.size());
+                Class.forName("com.mq.test.setup.MQQueueSetup");
+                TestLogger.logInfo(setupTest, "Bootstrapping test queues with sample data");
+                
+                com.mq.test.setup.MQQueueSetup.bootstrap(
+                    mqConfig,
+                    queueConfig.getQueue1Name(),
+                    queueConfig.getQueue2Name(),
+                    true,  // clear queues first
+                    10     // seed 10 messages
+                );
+                TestLogger.logInfo(setupTest, "Queue bootstrap completed");
+            } catch (ClassNotFoundException e) {
+                TestLogger.logInfo(setupTest, "Skipping queue bootstrap (setup class not available)");
+            } catch (Exception e) {
+                TestLogger.logWarning(setupTest, "Queue bootstrap failed: " + e.getMessage());
+            }
+            
+            // Read messages from Queue 1
+            TestLogger.printConsoleSection("Reading Queue: " + queueConfig.getQueue1Name());
+            try {
+                queue1Messages = MQMessageReader.readMessages(
+                    mqConfig, 
+                    queueConfig.getQueue1Name(), 
+                    queueConfig.getMaxMessages(), 
+                    queueConfig.isBrowseMode()
+                );
+                TestLogger.logConnectionSuccess(setupTest, queueConfig.getQueue1Name(), 
+                    queue1Messages.size());
             } catch (MQException mqe) {
-                MQErrorHandler.handleMQException(setupTest, queue1Name, mqe);
-                setupErrorMessage = MQErrorHandler.handleMQException(queue1Name, mqe);
+                MQErrorHandler.handleMQException(setupTest, queueConfig.getQueue1Name(), mqe);
+                setupErrorMessage = MQErrorHandler.handleMQException(queueConfig.getQueue1Name(), mqe);
                 throw mqe;
             } catch (UnknownHostException uhe) {
-                MQErrorHandler.handleUnknownHostException(setupTest, config, uhe);
-                setupErrorMessage = MQErrorHandler.handleUnknownHostException(config, uhe);
+                MQErrorHandler.handleUnknownHostException(setupTest, mqConfig, uhe);
+                setupErrorMessage = MQErrorHandler.handleUnknownHostException(mqConfig, uhe);
                 throw uhe;
             } catch (ConnectException ce) {
-                MQErrorHandler.handleConnectionException(setupTest, config, ce);
-                setupErrorMessage = MQErrorHandler.handleConnectionException(config, ce);
+                MQErrorHandler.handleConnectionException(setupTest, mqConfig, ce);
+                setupErrorMessage = MQErrorHandler.handleConnectionException(mqConfig, ce);
                 throw ce;
             } catch (SocketTimeoutException ste) {
-                MQErrorHandler.handleTimeoutException(setupTest, config, ste);
-                setupErrorMessage = MQErrorHandler.handleTimeoutException(config, ste);
+                MQErrorHandler.handleTimeoutException(setupTest, mqConfig, ste);
+                setupErrorMessage = MQErrorHandler.handleTimeoutException(mqConfig, ste);
                 throw ste;
             } catch (IOException ioe) {
                 MQErrorHandler.handleIOException(setupTest, ioe);
@@ -99,25 +141,31 @@ public class MQQueueComparisonTest {
             }
             
             // Read messages from Queue 2
-            TestLogger.printConsoleSection("Reading Queue: " + queue2Name);
+            TestLogger.printConsoleSection("Reading Queue: " + queueConfig.getQueue2Name());
             try {
-                queue2Messages = MQMessageReader.readMessages(config, queue2Name, 1000, true);
-                TestLogger.logConnectionSuccess(setupTest, queue2Name, queue2Messages.size());
+                queue2Messages = MQMessageReader.readMessages(
+                    mqConfig, 
+                    queueConfig.getQueue2Name(), 
+                    queueConfig.getMaxMessages(), 
+                    queueConfig.isBrowseMode()
+                );
+                TestLogger.logConnectionSuccess(setupTest, queueConfig.getQueue2Name(), 
+                    queue2Messages.size());
             } catch (MQException mqe) {
-                MQErrorHandler.handleMQException(setupTest, queue2Name, mqe);
-                setupErrorMessage = MQErrorHandler.handleMQException(queue2Name, mqe);
+                MQErrorHandler.handleMQException(setupTest, queueConfig.getQueue2Name(), mqe);
+                setupErrorMessage = MQErrorHandler.handleMQException(queueConfig.getQueue2Name(), mqe);
                 throw mqe;
             } catch (UnknownHostException uhe) {
-                MQErrorHandler.handleUnknownHostException(setupTest, config, uhe);
-                setupErrorMessage = MQErrorHandler.handleUnknownHostException(config, uhe);
+                MQErrorHandler.handleUnknownHostException(setupTest, mqConfig, uhe);
+                setupErrorMessage = MQErrorHandler.handleUnknownHostException(mqConfig, uhe);
                 throw uhe;
             } catch (ConnectException ce) {
-                MQErrorHandler.handleConnectionException(setupTest, config, ce);
-                setupErrorMessage = MQErrorHandler.handleConnectionException(config, ce);
+                MQErrorHandler.handleConnectionException(setupTest, mqConfig, ce);
+                setupErrorMessage = MQErrorHandler.handleConnectionException(mqConfig, ce);
                 throw ce;
             } catch (SocketTimeoutException ste) {
-                MQErrorHandler.handleTimeoutException(setupTest, config, ste);
-                setupErrorMessage = MQErrorHandler.handleTimeoutException(config, ste);
+                MQErrorHandler.handleTimeoutException(setupTest, mqConfig, ste);
+                setupErrorMessage = MQErrorHandler.handleTimeoutException(mqConfig, ste);
                 throw ste;
             } catch (IOException ioe) {
                 MQErrorHandler.handleIOException(setupTest, ioe);
@@ -139,7 +187,11 @@ public class MQQueueComparisonTest {
     }
     
     private void checkSetupSuccess() {
-        if (!setupSuccessful) {
+        if (!setupSuccessful && testConfig != null && testConfig.isSkipOnSetupFailure()) {
+            ExtentTest test = ExtentReportManager.getTest();
+            TestLogger.logSkip(test, "Test skipped due to setup failure: " + setupErrorMessage);
+            Assumptions.assumeTrue(setupSuccessful, "Setup failed: " + setupErrorMessage);
+        } else if (!setupSuccessful) {
             ExtentTest test = ExtentReportManager.getTest();
             TestLogger.logSkip(test, "Test skipped due to setup failure: " + setupErrorMessage);
             Assumptions.assumeTrue(setupSuccessful, "Setup failed: " + setupErrorMessage);
@@ -318,8 +370,10 @@ public class MQQueueComparisonTest {
         TestLogger.logTestStart(test, "Timestamp Comparison");
         
         try {
-            long toleranceMs = 5000;
-            TestLogger.logInfo(test, String.format("Using tolerance: %dms", toleranceMs));
+            long toleranceMs = testConfig.getTimestampToleranceMs();
+            TestLogger.logInfo(test, String.format("Using tolerance: %dms (from %s config)", 
+                toleranceMs, ConfigurationManager.getCurrentEnvironment()));
+            
             ComparisonResult result = MessageComparator.compareTimestamps(queue1Messages, queue2Messages, toleranceMs);
             TestLogger.logComparisonResultAsWarning(test, result);
             TestLogger.logInfo(test, "Timestamp comparison completed");
@@ -396,7 +450,7 @@ public class MQQueueComparisonTest {
         TestLogger.logTestStart(test, "Duplicate Check - Queue1");
         
         try {
-            ComparisonResult result = MessageComparator.findDuplicateMessages(queue1Messages, queue1Name);
+            ComparisonResult result = MessageComparator.findDuplicateMessages(queue1Messages, queueConfig.getQueue1Name());
             TestLogger.logComparisonResultAsWarning(test, result);
             TestLogger.logInfo(test, "Duplicate check completed for Queue1");
             TestLogger.logTestEnd(test, "Duplicate Check - Queue1", true);
@@ -415,7 +469,7 @@ public class MQQueueComparisonTest {
         TestLogger.logTestStart(test, "Duplicate Check - Queue2");
         
         try {
-            ComparisonResult result = MessageComparator.findDuplicateMessages(queue2Messages, queue2Name);
+            ComparisonResult result = MessageComparator.findDuplicateMessages(queue2Messages, queueConfig.getQueue2Name());
             TestLogger.logComparisonResultAsWarning(test, result);
             TestLogger.logInfo(test, "Duplicate check completed for Queue2");
             TestLogger.logTestEnd(test, "Duplicate Check - Queue2", true);
@@ -434,7 +488,7 @@ public class MQQueueComparisonTest {
         TestLogger.logTestStart(test, "Sequence Check - Queue1");
         
         try {
-            ComparisonResult result = MessageComparator.checkMessageSequence(queue1Messages, queue1Name);
+            ComparisonResult result = MessageComparator.checkMessageSequence(queue1Messages, queueConfig.getQueue1Name());
             TestLogger.logComparisonResultAsWarning(test, result);
             TestLogger.logInfo(test, "Sequence check completed for Queue1");
             TestLogger.logTestEnd(test, "Sequence Check - Queue1", true);
@@ -453,7 +507,7 @@ public class MQQueueComparisonTest {
         TestLogger.logTestStart(test, "Sequence Check - Queue2");
         
         try {
-            ComparisonResult result = MessageComparator.checkMessageSequence(queue2Messages, queue2Name);
+            ComparisonResult result = MessageComparator.checkMessageSequence(queue2Messages, queueConfig.getQueue2Name());
             TestLogger.logComparisonResultAsWarning(test, result);
             TestLogger.logInfo(test, "Sequence check completed for Queue2");
             TestLogger.logTestEnd(test, "Sequence Check - Queue2", true);
@@ -503,9 +557,11 @@ public class MQQueueComparisonTest {
             long maxSize1 = queue1Messages.stream().mapToLong(m -> m.getPayload().length()).max().orElse(0);
             long maxSize2 = queue2Messages.stream().mapToLong(m -> m.getPayload().length()).max().orElse(0);
             
-            TestLogger.logStatistics(test, queue1Name, queue1Messages.size(), totalSize1, avgSize1, minSize1, maxSize1);
+            TestLogger.logStatistics(test, queueConfig.getQueue1Name(), queue1Messages.size(), 
+                totalSize1, avgSize1, minSize1, maxSize1);
             TestLogger.logSeparator(test);
-            TestLogger.logStatistics(test, queue2Name, queue2Messages.size(), totalSize2, avgSize2, minSize2, maxSize2);
+            TestLogger.logStatistics(test, queueConfig.getQueue2Name(), queue2Messages.size(), 
+                totalSize2, avgSize2, minSize2, maxSize2);
             
             TestLogger.logPass(test, "Statistical summary generated");
             TestLogger.logTestEnd(test, "Statistical Summary", true);
@@ -519,13 +575,23 @@ public class MQQueueComparisonTest {
     public static void tearDown() {
         try {
             ExtentReportManager.flush();
+            
+            String reportPath = testConfig != null ? testConfig.getReportOutputPath() : "target/ExtentReport.html";
+            
             TestLogger.printConsoleSummary(
                 setupSuccessful, 
                 setupErrorMessage, 
                 queue1Messages != null ? queue1Messages.size() : 0,
                 queue2Messages != null ? queue2Messages.size() : 0,
-                "target/ExtentReport.html"
+                reportPath
             );
+            
+            if (ConfigurationManager.getCurrentEnvironment() != null) {
+                System.out.println(String.format("\n✓ Test execution completed for environment: %s", 
+                    ConfigurationManager.getCurrentEnvironment().toUpperCase()));
+            }
+            System.out.println(String.format("✓ Report available at: %s\n", reportPath));
+            
         } catch (Exception e) {
             System.err.println("Error during teardown: " + e.getMessage());
         }
