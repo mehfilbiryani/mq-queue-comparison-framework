@@ -1,0 +1,4 @@
+com\mq\test\MQQueueComparisonTest.class
+com\mq\test\setup\MQQueueSetup$MQAdmin.class
+com\mq\test\setup\MQQueueSetup.class
+com\mq\test\error\MQErrorHandler.class
