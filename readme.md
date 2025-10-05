@@ -1,4 +1,4 @@
-# IBM MQ Queue Comparison Test Framework
+# MQ Queue Comparison Test Framework
 
 A comprehensive, production-ready JUnit 5 test framework for comparing messages between two IBM MQ queues with detailed reporting, error handling, and environment-based configuration.
 
@@ -21,40 +21,12 @@ A comprehensive, production-ready JUnit 5 test framework for comparing messages 
 
 ---
 
-## Features
 
-### Core Capabilities
-- **18 Comprehensive Test Scenarios** - Message count, payload, metadata, ordering, duplicates, and more
-- **Non-Destructive Testing** - Browse mode reads messages without removing them from queues
-- **Environment-Based Configuration** - Separate configs for DEV, QA, UAT, and PROD
-- **Advanced Error Handling** - Detailed error messages with troubleshooting guidance for 20+ MQ error codes
-- **Extent Reports Integration** - Beautiful HTML reports with pass/fail/warning status
-- **Console Logging** - Formatted console output with timestamps and visual separators
-- **Configuration Management** - Type-safe configuration with validation and password masking
-- **Optional Queue Bootstrap** - Automatically seed test queues with sample data
-
-# IBM MQ Queue Comparison Test Framework
-
-A comprehensive, production-ready JUnit 5 test framework for comparing messages between two IBM MQ queues with detailed reporting, error handling, and environment-based configuration.
 
 [![Java](https://img.shields.io/badge/Java-11%2B-orange)](https://www.oracle.com/java/)
 [![Maven](https://img.shields.io/badge/Maven-3.6%2B-blue)](https://maven.apache.org/)
 [![JUnit](https://img.shields.io/badge/JUnit-5.10.0-green)](https://junit.org/junit5/)
 [![IBM MQ](https://img.shields.io/badge/IBM%20MQ-9.3%2B-red)](https://www.ibm.com/products/mq)
-
-## Table of Contents
-
-- [Features](#features)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [Test Scenarios](#test-scenarios)
-- [Error Handling](#error-handling)
-- [Logging & Reports](#logging--reports)
-- [CI/CD Integration](#cicd-integration)
-- [Troubleshooting](#troubleshooting)
-- [Project Structure](#project-structure)
 
 ---
 
