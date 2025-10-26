@@ -1,0 +1,2 @@
+# Optional: $env:AWS_PROFILE="yourprofile"; $env:AWS_REGION="ap-south-1"
+.\create_dynamodb_mq_compare.ps1 -Region ap-south-1
