@@ -1,0 +1,512 @@
+# ExtentReports Setup Guide for Report Comparison
+
+## Maven Dependencies
+
+Add these dependencies to your `pom.xml`:
+
+```xml
+<dependencies>
+    <!-- ExtentReports 5.x (Latest) -->
+    <dependency>
+        <groupId>com.aventstack</groupId>
+        <artifactId>extentreports</artifactId>
+        <version>5.1.1</version>
+    </dependency>
+    
+    <!-- TestNG (if using TestNG integration) -->
+    <dependency>
+        <groupId>org.testng</groupId>
+        <artifactId>testng</artifactId>
+        <version>7.8.0</version>
+        <scope>test</scope>
+    </dependency>
+    
+    <!-- JUnit 5 (if using JUnit integration) -->
+    <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter-api</artifactId>
+        <version>5.10.0</version>
+        <scope>test</scope>
+    </dependency>
+    
+    <!-- Apache Commons CSV (for CSV parsing) -->
+    <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-csv</artifactId>
+        <version>1.10.0</version>
+    </dependency>
+    
+    <!-- Jackson for JSON support (optional) -->
+    <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>2.15.2</version>
+    </dependency>
+    
+    <!-- Lombok (optional, for reducing boilerplate) -->
+    <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <version>1.18.30</version>
+        <scope>provided</scope>
+    </dependency>
+</dependencies>
+```
+
+## Gradle Dependencies
+
+Add these to your `build.gradle`:
+
+```gradle
+dependencies {
+    implementation 'com.aventstack:extentreports:5.1.1'
+    testImplementation 'org.testng:testng:7.8.0'
+    implementation 'org.apache.commons:commons-csv:1.10.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+}
+```
+
+---
+
+## Project Structure
+
+```
+src/
+├── main/
+│   ├── java/
+│   │   ├── comparator/
+│   │   │   ├── ReportComparator.java
+│   │   │   ├── ExtentReportComparator.java
+│   │   │   └── ComparisonReporter.java
+│   │   ├── model/
+│   │   │   ├── ReportRow.java
+│   │   │   ├── ComparisonResult.java
+│   │   │   └── ComparisonConfig.java
+│   │   └── utils/
+│   │       ├── CSVLoader.java
+│   │       ├── DatabaseLoader.java
+│   │       └── FileUtils.java
+│   └── resources/
+│       ├── extent-config.xml
+│       └── log4j2.xml
+└── test/
+    ├── java/
+    │   ├── tests/
+    │   │   ├── OrderReportComparisonTest.java
+    │   │   ├── CustomerReportComparisonTest.java
+    │   │   └── BaseComparisonTest.java
+    │   └── testdata/
+    │       ├── legacy_orders.csv
+    │       └── modern_orders.csv
+    └── resources/
+        └── testng.xml
+```
+
+---
+
+## ExtentReports Configuration
+
+Create `extent-config.xml` in `src/main/resources/`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<extentreports>
+    <configuration>
+        <!-- Report theme: STANDARD or DARK -->
+        <theme>STANDARD</theme>
+        
+        <!-- Document encoding -->
+        <encoding>UTF-8</encoding>
+        
+        <!-- Protocol: HTTP or HTTPS -->
+        <protocol>https</protocol>
+        
+        <!-- Title of the document -->
+        <documentTitle>Report Comparison Results</documentTitle>
+        
+        <!-- Name of the report -->
+        <reportName>Legacy vs Modern - Parity Check</reportName>
+        
+        <!-- Timestamp format -->
+        <timeStampFormat>MMM dd, yyyy HH:mm:ss</timeStampFormat>
+        
+        <!-- CSS customization -->
+        <css>
+            .badge-default { background-color: #6c757d; }
+            .badge-primary { background-color: #007bff; }
+            .badge-success { background-color: #28a745; }
+            .badge-warning { background-color: #ffc107; color: #212529; }
+            .badge-danger { background-color: #dc3545; }
+            .node.pass { color: #28a745; }
+            .node.fail { color: #dc3545; }
+            .node.warning { color: #ffc107; }
+        </css>
+        
+        <!-- JavaScript customization -->
+        <js>
+            // Custom JavaScript if needed
+        </js>
+    </configuration>
+</extentreports>
+```
+
+---
+
+## Complete Implementation with Extent Integration
+
+### BaseTest Class (TestNG)
+
+```java
+import com.aventstack.extentreports.*;
+import org.testng.ITestContext;
+import org.testng.ITestResult;
+import org.testng.annotations.*;
+
+public class BaseComparisonTest {
+    
+    protected ExtentReportComparator reportComparator;
+    protected ExtentTest currentTest;
+    
+    @BeforeSuite
+    public void setupSuite(ITestContext context) {
+        String reportPath = "reports/comparison_" + 
+            System.currentTimeMillis() + ".html";
+        reportComparator = new ExtentReportComparator(reportPath);
+        
+        // Set system info
+        reportComparator.extent.setSystemInfo("Environment", 
+            System.getProperty("env", "QA"));
+        reportComparator.extent.setSystemInfo("Build", 
+            System.getProperty("build.number", "LOCAL"));
+        reportComparator.extent.setSystemInfo("User", 
+            System.getProperty("user.name"));
+    }
+    
+    @AfterSuite
+    public void tearDownSuite() {
+        if (reportComparator != null) {
+            reportComparator.flush();
+        }
+    }
+    
+    @BeforeMethod
+    public void setupTest(ITestResult result) {
+        String testName = result.getMethod().getMethodName();
+        String description = result.getMethod().getDescription();
+        
+        currentTest = reportComparator.createComparisonTest(testName, description);
+        currentTest.assignCategory(result.getTestClass().getName());
+    }
+    
+    @AfterMethod
+    public void finalizeTest(ITestResult result) {
+        if (result.getStatus() == ITestResult.FAILURE) {
+            currentTest.fail(result.getThrowable());
+        } else if (result.getStatus() == ITestResult.SKIP) {
+            currentTest.skip("Test skipped");
+        }
+    }
+    
+    // Helper method for logging
+    protected void logInfo(String message) {
+        currentTest.info(message);
+        System.out.println("[INFO] " + message);
+    }
+    
+    protected void logWarning(String message) {
+        currentTest.warning(message);
+        System.out.println("[WARN] " + message);
+    }
+    
+    protected void logError(String message) {
+        currentTest.fail(message);
+        System.err.println("[ERROR] " + message);
+    }
+}
+```
+
+### Actual Test Class
+
+```java
+import org.testng.Assert;
+import org.testng.annotations.Test;
+import java.util.Arrays;
+import java.util.List;
+
+public class OrderReportComparisonTest extends BaseComparisonTest {
+    
+    @Test(priority = 1, description = "Verify order report parity between systems")
+    public void testOrderReportParity() {
+        logInfo("Starting order report comparison");
+        
+        try {
+            // Step 1: Load data
+            currentTest.info("Loading legacy order report...");
+            List<ReportComparator.ReportRow> legacyRows = 
+                CSVLoader.loadCSV("testdata/legacy_orders.csv");
+            currentTest.pass("Loaded " + legacyRows.size() + " legacy records");
+            
+            currentTest.info("Loading modern order report...");
+            List<ReportComparator.ReportRow> modernRows = 
+                CSVLoader.loadCSV("testdata/modern_orders.csv");
+            currentTest.pass("Loaded " + modernRows.size() + " modern records");
+            
+            // Step 2: Configure comparison
+            ReportComparator.ComparisonConfig config = 
+                new ReportComparator.ComparisonConfig(
+                    Arrays.asList("ORDER_ID", "LINE_ITEM"))
+                    .ignoreColumns("TIMESTAMP", "LAST_UPDATED", "VERSION")
+                    .setCaseSensitive(false);
+            
+            reportComparator.logConfiguration(currentTest, config);
+            
+            // Step 3: Perform comparison
+            currentTest.info("Executing comparison...");
+            ReportComparator comparator = new ReportComparator();
+            ReportComparator.ComparisonResult result = 
+                comparator.compare(legacyRows, modernRows, config);
+            
+            // Step 4: Log results
+            logComparisonResults(result);
+            
+            // Step 5: Assertions
+            ReportComparator.ComparisonSummary summary = result.getSummary();
+            
+            // Soft assertions with detailed logging
+            if (summary.getLegacyOnlyRows() > 0) {
+                logError("Found " + summary.getLegacyOnlyRows() + 
+                    " records in legacy but not in modern");
+            }
+            
+            if (summary.getModernOnlyRows() > 0) {
+                logError("Found " + summary.getModernOnlyRows() + 
+                    " records in modern but not in legacy");
+            }
+            
+            if (summary.getRowsWithDifferences() > 0) {
+                logWarning("Found " + summary.getRowsWithDifferences() + 
+                    " records with field differences");
+            }
+            
+            // Final assertion
+            Assert.assertTrue(summary.isPerfectMatch(), 
+                "Order reports do not match - see detailed report");
+            
+            currentTest.pass("✓ Order reports match perfectly!");
+            
+        } catch (Exception e) {
+            currentTest.fail("Test execution failed: " + e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
+    
+    @Test(priority = 2, description = "Verify customer report parity")
+    public void testCustomerReportParity() {
+        // Similar implementation
+    }
+    
+    @Test(priority = 3, description = "Verify transaction report parity")
+    public void testTransactionReportParity() {
+        // Similar implementation
+    }
+    
+    private void logComparisonResults(ReportComparator.ComparisonResult result) {
+        ExtentTest resultsNode = currentTest.createNode("Comparison Results");
+        
+        ReportComparator.ComparisonSummary summary = result.getSummary();
+        
+        resultsNode.info("Legacy System: " + summary.getTotalLegacyRows() + " rows");
+        resultsNode.info("Modern System: " + summary.getTotalModernRows() + " rows");
+        resultsNode.info("Matched: " + summary.getMatchedRows() + " rows");
+        
+        if (summary.getLegacyOnlyRows() > 0) {
+            resultsNode.warning("Legacy-Only: " + summary.getLegacyOnlyRows());
+        }
+        
+        if (summary.getModernOnlyRows() > 0) {
+            resultsNode.warning("Modern-Only: " + summary.getModernOnlyRows());
+        }
+        
+        if (summary.getRowsWithDifferences() > 0) {
+            resultsNode.warning("With Differences: " + summary.getRowsWithDifferences());
+        }
+    }
+}
+```
+
+---
+
+## Running Tests
+
+### TestNG XML Configuration
+
+Create `testng.xml`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<suite name="Report Comparison Suite" parallel="false">
+    <test name="Parity Check Tests">
+        <classes>
+            <class name="tests.OrderReportComparisonTest"/>
+            <class name="tests.CustomerReportComparisonTest"/>
+            <class name="tests.TransactionReportComparisonTest"/>
+        </classes>
+    </test>
+</suite>
+```
+
+### Maven Command
+
+```bash
+# Run all tests
+mvn clean test
+
+# Run specific test
+mvn clean test -Dtest=OrderReportComparisonTest
+
+# Run with environment
+mvn clean test -Denv=PROD -Dbuild.number=123
+```
+
+---
+
+## Sample Report Output
+
+The ExtentReport will generate a beautiful HTML report with:
+
+### 1. Dashboard View
+- Total tests executed
+- Pass/Fail/Skip counts
+- Pie charts and graphs
+- Execution timeline
+
+### 2. Test View
+- Hierarchical test structure
+- Node-based drill-down
+- Color-coded status (Pass/Fail/Warning)
+- Expandable/collapsible sections
+
+### 3. Category View
+- Tests grouped by category
+- Filter by status
+- Search functionality
+
+### 4. Exception View
+- All failures in one place
+- Stack traces
+- Failure patterns
+
+### 5. Dashboard Statistics
+```
+✓ Total Tests: 10
+✓ Passed: 8
+⚠ Warning: 1
+✗ Failed: 1
+━ Skipped: 0
+
+Pass Rate: 80%
+Execution Time: 45.2 seconds
+```
+
+---
+
+## Advanced Features
+
+### 1. Add Screenshots/Attachments
+
+```java
+// Capture and attach screenshot
+public void attachScreenshot(String screenshotPath) {
+    try {
+        currentTest.addScreenCaptureFromPath(screenshotPath, "Comparison Details");
+    } catch (Exception e) {
+        currentTest.warning("Could not attach screenshot: " + e.getMessage());
+    }
+}
+
+// Attach CSV file
+public void attachCSVFile(String csvPath) {
+    currentTest.info("Attached CSV: " + csvPath);
+    // ExtentReports will show download link
+}
+```
+
+### 2. Custom Markup
+
+```java
+// Create custom HTML tables
+String[][] data = {
+    {"Column", "Value"},
+    {"Orders", "1000"},
+    {"Mismatches", "5"}
+};
+currentTest.info(MarkupHelper.createTable(data));
+
+// Create code blocks
+currentTest.info(MarkupHelper.createCodeBlock("SELECT * FROM orders"));
+
+// Create labels
+currentTest.info(MarkupHelper.createLabel("High Priority", ExtentColor.RED));
+```
+
+### 3. Parallel Execution
+
+```java
+// ExtentReports is thread-safe
+@Test(threadPoolSize = 5, invocationCount = 10)
+public void parallelComparisonTest() {
+    // Tests run in parallel
+    // Each thread has its own test node
+}
+```
+
+---
+
+## Best Practices
+
+1. **One ExtentReports instance per test suite** - Initialize in @BeforeSuite
+2. **Flush only at the end** - Call flush() in @AfterSuite
+3. **Use hierarchical nodes** - createNode() for better organization
+4. **Log at appropriate levels** - info/pass/fail/warning/skip
+5. **Add meaningful descriptions** - Help stakeholders understand results
+6. **Include configuration details** - Log what was compared and how
+7. **Attach artifacts** - CSV files, screenshots, logs
+8. **Use categories** - Group related tests together
+9. **Add system info** - Environment, build, tester details
+10. **Handle exceptions properly** - Log full stack traces
+
+---
+
+## Troubleshooting
+
+### Issue: Report not generated
+**Solution:** Ensure flush() is called
+
+### Issue: Tests not appearing
+**Solution:** Check ExtentTest is created before logging
+
+### Issue: Blank report
+**Solution:** Verify report path is writable
+
+### Issue: Formatting issues
+**Solution:** Use MarkupHelper for complex content
+
+### Issue: Performance slow with large data
+**Solution:** Log summary only, not every row
+
+---
+
+## Output Example
+
+Your report will be generated at: `reports/comparison_report.html`
+
+Open it in browser to see:
+- Beautiful, responsive UI
+- Interactive charts and graphs
+- Drill-down capabilities
+- Export to PDF option
+- Email-ready format
+- Mobile-friendly design
+
+Perfect for stakeholder presentations and audit trails!
